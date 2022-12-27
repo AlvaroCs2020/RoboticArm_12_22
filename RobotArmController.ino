@@ -1,138 +1,85 @@
-//(Me salto el pin 3 por que pareciera no funcionar en el arduino uno)
-#define SERVOB_R 2 //Base, right 
-#define SERVOB_L 4 //Base, left
-#define SERVOA_1 5 //Arm, first
-#define SERVOW_1 6 //Wrist, first
-
-#define START 90
 #include <Servo.h>
-Servo sBaseR;
-Servo sBaseL;
-Servo sArm;
+//(Me salto el pin 3 por que pareciera no funcionar en el arduino uno)
+#define SERVO1 2 //Base, right 
+#define SERVO2 4 //Base, left
+#define SERVO3 5 //Arm, first
+#define SERVO4 6 //Wrist, first
+#define START 90 //Start angle2
+Servo sBase;
+Servo sArm1;
+Servo sArm2;
 Servo sWrist;
-int currentR;
-int currentL;
-int currentA;
-int moveToB;
 int i;
 int j;
 int x;        // variable para almacenar valor leido del eje X
 int y;        // variable para almacenar valor leido del eje y
-int angle;
-void rotateBaseLink();
+int z;
+int angle0;
+int angle1;
+int angle2;
+void rotateBase();
+void rotateArm1();
+void rotateArm2();
 void setup() 
 {
   Serial.begin(9600); // open the serial port at 9600 bps:
-  sBaseR.attach(SERVOB_R);
-  sBaseL.attach(SERVOB_L);
-  sArm.attach(SERVOA_1);
-  sWrist.attach(SERVOW_1);
-  sArm.write(START);
-  sBaseR.write(START);
-  sBaseR.write(START);
-  moveToB = START;
-  angle=START;
+  sBase.attach(SERVO1);
+  sArm1.attach(SERVO2);
+  sArm2.attach(SERVO3);
+  sWrist.attach(SERVO4);
+  angle1 = START;
+  angle2 = START;
+  /*
+  sArm2.write(START);
+  sBase.write(START);
+  sBase.write(START);
+  */
 }
 
 void loop() 
-{ 
-  rotateBaseLink();
-  x = analogRead(A0);      // lectura de valor de eje x
-  
-  if (x >= 0 && x < 480 && 0<moveToB)// si X esta en la zona izquierda
-  {          
-    moveToB--;
-    delay(25);
-  }else  if (x > 520 && x <= 1023 && moveToB<180)// si X esta en la zona derecha
-  {          
-    moveToB++;
-    delay(25);
-  }
-  sBaseR.write(moveToB);
-  sBaseL.write(180-moveToB);
-  
-  /*
-  if(moveToB >= 90)
-  {
-    currentR = sBaseR.read();
-    currentL = sBaseL.read();
-    for(i = 0 ;i < moveToB-START; i++) //Movemos el primer link
-    {
-      sBaseR.write(currentR + i);
-      sBaseL.write(currentL - i);
-      delay(10);
-    }
-  }
-  else
-  {
-    currentR = sBaseR.read();
-    currentL = sBaseL.read();
-    for(i = 0 ;i < START-moveToB; i++) //Movemos el primer link
-    {
-      sBaseR.write(currentR - i);
-      sBaseL.write(currentL + i);
-      delay(10);
-    }
-  
-  }
-  */
+{
+  rotateBase();
+  rotateArm1();
+  rotateArm2();
 
 }
-  /*
-  for(j = 0 ;j< angle; j++) //movemos el segundo
-  {
-    sArm.write(currentA + j);
-    delay(10);
-  }
-  sBaseL.write(0);
-  //sArm.write(0);
-  //sWrist.write(0);
-  rotateFstLink(90);
-  //sArm.write(90);
-  //sWrist.write(90);
-  delay(1500);
-  servoMotor.write(0);
-  servoMotor2.write(0);
-    // Esperamos 1 segundo
-  servoMotor.write(180);
-    // Esperamos 1 segundo
-  if(digitalRead(LEFT) == HIGH)
-  {
-    servoMotor.write(0);
-    // Esperamos 1 segundo
-    delay(1500);
-    Serial.println(digitalRead(LEFT));
-  }
-  else if(digitalRead(RIGHT) == HIGH)
-  {
-    servoMotor.write(90);
-    // Esperamos 1 segundo
-    delay(1500);
-    Serial.println(digitalRead(RIGHT));
-  }
-
-  while(digitalRead(LEFT) == LOW){}
-  Serial.println(digitalRead(LEFT));
-  digitalWrite(STEP, HIGH);       // nivel alto
-  delay(10);          // por 10 mseg
-  digitalWrite(STEP, LOW);        // nivel bajo
-  delay(10);          // por 10 mseg
-  while(digitalRead(LEFT) == HIGH){}
-  */
-void rotateBaseLink()
+void rotateBase()
 {
-  Serial.println(angle);
+  z = analogRead(A2);
+  delay(10);
+  angle0 = map(z,0,1023,0,180);
+  sBase.write(180 - angle0);
+}
+void rotateArm1()
+{
+  x = analogRead(A0); // lectura de valor de eje x
+
+  if (x >= 0 && x < 480 && 0 < angle1) // si X esta en la zona izquierda
+  {
+    angle1--;
+    delay(25);
+  }
+  else if (x > 520 && x <= 1023 && angle1 < 180) // si X esta en la zona derecha
+  {
+    angle1++;
+    delay(25);
+  }
+  sArm1.write(angle1);
+} 
+void rotateArm2()
+{
+  Serial.println(angle2);
   y = analogRead(A1);     // lectura de valor de eje x
 
-  if (y >= 0 && y < 480 && 0<angle)// si X esta en la zona izquierda
+  if (y >= 0 && y < 480 && 0<angle2)// si X esta en la zona izquierda
   {          
-    angle--;
+    angle2--;
     delay(25);
-  }else  if (y > 520 && y <= 1023 && angle<180)// si X esta en la zona derecha
+  }else  if (y > 520 && y <= 1023 && angle2<180)// si X esta en la zona derecha
   {          
-    angle++;
+    angle2++;
     delay(25);
   }
 
-  sArm.write(angle);
+  sArm2.write(angle2);
 }
