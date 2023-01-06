@@ -6,6 +6,8 @@
 #define SERVO4 6 //Wrist, first
 #define START 90 //Start angle2
 #define RES 0.01
+#define MIN_P 500
+#define MAX_P 2500
 Servo sBase;
 Servo sArm1;
 Servo sArm2;
@@ -23,7 +25,13 @@ float length0 = 1;
 float length1 = 1;
 float length2;
 //Return angles
-float angles[2];
+int angles[2],
+    smoothAngles0,
+    smoothAngles1,
+    smoothAngles0Prev,
+    smoothAngles1Prev;
+
+bool controllingJaw = false;
 
 
 int x;        // variable para almacenar valor leido del eje X
@@ -33,11 +41,8 @@ int z;
 int angle0;
 int angle1;
 int angle2;
-void rotateBase();
-void rotateArm1();
-void rotateArm2();
-void inverseKinematicsB(float x, float y, float angles[]);
 void inverseKinematics(float i, float j, float angles[]);
+void manualMode();
 void setup() 
 {
   Serial.begin(9600); // open the serial port at 9600 bps:
@@ -45,59 +50,25 @@ void setup()
   sArm1.attach(SERVO2);
   sArm2.attach(SERVO3);
   sWrist.attach(SERVO4);
-  sWrist.write(90);
   inverseKinematics(i,j,angles);
-  Serial.print("(");
-  Serial.print(angles[0]);
-  Serial.print(";");
-  Serial.print(angles[1]);
-  Serial.println(")");
-  
 }
 void loop() 
 {
-  /*
-  delay(50);
-  rotateArm1();
-  rotateArm2();
   
-  //j = 20;
-  
-  sArm1.write(angles[0]+90);
-  sArm2.write(angles[1]);
-  
-  delay(20);
-  */
-  rotateBase();
-  sWrist.write(0);
-  
-  x = analogRead(A0); // lectura de valor de eje x
-  if (x >= 0 && x < 480 ) 
-    i=i-RES;
-  else if (x > 520 && x <= 1023 )
-    i=i+RES;
-  
-  y = analogRead(A1); // lectura de valor de eje x
-  if (y >= 0 && y < 480 && 0<j )
-    j=j-RES; 
-  else if (y > 520 && y <= 1023 )
-    j=j+RES;
-  
-  inverseKinematics(i,j,angles);
-  sArm1.write(angles[0]);
-  sArm2.write(angles[1]);
-  Serial.print("punto ");
-  Serial.print(i);
-  Serial.print(" ");
-  Serial.print(j);
-  Serial.print(" (");
-  Serial.print(angles[0]);
-  Serial.print(";");
-  Serial.print(angles[1]);
-  Serial.println(")");
-  delay(50);
+  y = analogRead(A1);
+  x = analogRead(A0);
+
+  if(!controllingJaw)
+  {
+    manualMode();
+  }
+  else
+  {
+    //meter la garra la concha de mi hermana
+  }
 }
-void inverseKinematics(float x, float y, float angles[])
+
+void inverseKinematics(float x, float y, int angles[])
 {
   //Distance from origin to target poin
   length2 = sqrt(x*x + y*y);
@@ -114,50 +85,58 @@ void inverseKinematics(float x, float y, float angles[])
   float jointAngle1 = 180.0   - angle1;    // Angle B
   if(i<0)
     jointAngle0= abs(180+jointAngle0);
-  angles[0] = jointAngle0;
-  angles[1] = jointAngle1;
 
-}
-
-void rotateBase()
-{ 
+  //Convertimos los angulos
+  int scaledAngle0 = (int) (jointAngle0*100);
+  int scaledAngle1 = (int) (jointAngle1*100);
   
-  z = analogRead(A2);
-  angle0 = map(z,0,1023,0,40);
-  int fix = angle0 /10;
-  fix *= 10; 
-  sBase.write(fix);
+  scaledAngle0 = map(scaledAngle0,0,18000,MIN_P,MAX_P);
+  scaledAngle1 = map(scaledAngle1,0,18000,MIN_P,MAX_P);
+
+  
+  angles[0] = scaledAngle0;
+  angles[1] = scaledAngle1;
 
 }
-void rotateArm1()
+void manualMode()
 {
-  x = analogRead(A0); // lectura de valor de eje x
+  //Input use
+  if (x >= 0 && x < 480 ) 
+    i=i-RES;
+  else if (x > 520 && x <= 1023 )
+    i=i+RES;
+  
+  
+  if (y >= 0 && y < 480 && 0<j )
+    j=j-RES; 
+  else if (y > 520 && y <= 1023 )
+    j=j+RES;
+  
+  //Simple IK
+  
+  inverseKinematics(i,j,angles);
+  
+  //Smoothing anlges
+  
+  smoothAngles0 = angles[0]*0.9 + smoothAngles0Prev *0.1;
+  smoothAngles1 = angles[1]*0.9 + smoothAngles1Prev *0.1;
+  smoothAngles0Prev = smoothAngles0;
+  smoothAngles1Prev = smoothAngles1;
 
-  if (x >= 0 && x < 480 && 0 < angle1) // si X esta en la zona izquierda
-  {
-    angle1--;
-
-  }
-  else if (x > 520 && x <= 1023 && angle1 < 180) // si X esta en la zona derecha
-  {
-    angle1++;
-    //delay(25);
-  }
-  sArm1.write(angle1);
-} 
-void rotateArm2()
-{
-  y = analogRead(A1);     // lectura de valor de eje x
-
-  if (y >= 0 && y < 480 && 0<angle2)// si X esta en la zona izquierda
-  {          
-    angle2--;
-    //delay(25);
-  }else  if (y > 520 && y <= 1023 && angle2<180)// si X esta en la zona derecha
-  {          
-    angle2++;
-    //delay(25);
-  }
-
-  sArm2.write(angle2);
+  //Move the arm
+  
+  sArm1.writeMicroseconds(smoothAngles0);
+  sArm2.writeMicroseconds(smoothAngles1);
+  
+  //Debug stuff
+  Serial.print("punto ");
+  Serial.print(i);
+  Serial.print(" ");
+  Serial.print(j);
+  Serial.print(" (");
+  Serial.print(angles[0]);
+  Serial.print(";");
+  Serial.print(angles[1]);
+  Serial.println(")");
+  delay(50);
 }
