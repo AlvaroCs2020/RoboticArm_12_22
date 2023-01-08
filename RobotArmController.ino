@@ -4,20 +4,23 @@
 #define SERVO2 4 //Base, left
 #define SERVO3 5 //Arm, first
 #define SERVO4 6 //Wrist, first
+#define BUTTON 10
 #define START 90 //Start angle2
-#define RES 0.01
+#define RES 0.005
 #define MIN_P 500
 #define MAX_P 2500
+#define OFFSET_S1 150
+#define OFFSET_S2 100
+#define IO_DELAY 10
+
+
 Servo sBase;
 Servo sArm1;
 Servo sArm2;
 Servo sWrist;
 
-//Inverse Kinematics
-//Article about 2 joint IK: https://www.alanzucconi.com/2018/05/02/ik-2d-2/ 
-//all units are milimeters (mm)
-
-//Target point
+//All units are milimeters (mm)
+//Target point, initialized in a known postion
 float i = 1;
 float j = 1;
 float k = 1;
@@ -36,17 +39,21 @@ int angles[3],
     smoothAngles2Prev;
 
 bool controllingJaw = false;
+int jawAperture = 0;
 
 
 int x;        // variable para almacenar valor leido del eje X
 int y;        // variable para almacenar valor leido del eje y
 int z;
+//--------------Main functions--------------
+void inverseKinematics(float x, float y, float z,int angles[]);//Article about 2 joint IK: https://www.alanzucconi.com/2018/05/02/ik-2d-2/ 
 
-int angle0;
-int angle1;
-int angle2;
-void inverseKinematics(float x, float y, float z,int angles[]);
-void manualMode();
+void controllArm();
+
+void controllJaw(); //lacking implementation, bc i am not fucking able to save the file bfore shuting down my pc
+
+void goTo(float x, float y, float z); //lacking implementation
+//--------------Main functions--------------
 void setup() 
 {
   Serial.begin(9600); 
@@ -54,6 +61,8 @@ void setup()
   sArm1.attach(SERVO2);
   sArm2.attach(SERVO3);
   sWrist.attach(SERVO4);
+  sWrist.write(0);
+  pinMode(BUTTON, INPUT);
   inverseKinematics(i,j,k,angles);
 }
 void loop() 
@@ -61,24 +70,33 @@ void loop()
   
   y = analogRead(A1);
   x = analogRead(A0);
+  
+  //--------------Manual mode--------------
+
+  if(digitalRead(BUTTON) == 0)
+  {
+    controllingJaw = !controllingJaw;
+    sWrist.detach();
+    delay(300);
+  }
+  
+  
   if(!controllingJaw)
-  {
-    manualMode();
-  }
+    controllArm();
   else
-  {
-    //meter la garra la concha de mi hermana
-  }
+    controllJaw();
+  //--------------Manual mode--------------
 }
 
 void inverseKinematics(float x, float y, float z, int angles[])
 {
-  //IK calculations
-
   float jointAngle2 = atan(z/x) * (180/PI);
+  
   //Rotate point to xy plane
-  float newX = sin(jointAngle2)*x + cos(jointAngle2)*y;
+  
+  float newX = sqrt(z*z + x*x);
   float newY = y;
+
   length2 = sqrt(newX*newX + newY*newY);
   
   float cosAngle0 = ((length2 * length2) + (length0 * length0) - (length1 * length1)) / (2 * length2 * length0);
@@ -89,10 +107,8 @@ void inverseKinematics(float x, float y, float z, int angles[])
 
   float angle1 = acos(cosAngle1) * (180/PI);
   float atang = atan(newY/newX) * (180/PI);
-  float jointAngle0 = atang+angle0 ;// Angle A
-  float jointAngle1 = 180.0   - angle1;// Angle B
-  
-  
+  float jointAngle0 = atang+angle0 ;// Angle shoulder
+  float jointAngle1 = 180.0   - angle1;// Angle elbow
   
   if(newX<0)
     jointAngle0= abs(180+jointAngle0);
@@ -117,40 +133,36 @@ void inverseKinematics(float x, float y, float z, int angles[])
 
   //Return
   
-  angles[0] = scaledAngle0;
+  angles[0] = scaledAngle0 - OFFSET_S1;
   angles[1] = scaledAngle1;
   angles[2] = scaledAngle2;
-  
-  //Debug stuff
-
-  Serial.print("punto ");
-  Serial.print(newX);
-  Serial.print(" ");
-  Serial.print(newY);
-  Serial.print(" ");
-  Serial.print(z);
-  Serial.print(" (");
-  Serial.print(jointAngle0);
-  Serial.print(";");
-  Serial.print(jointAngle1);
-  Serial.print(";");
-  Serial.print(jointAngle2);
-  Serial.println(")");
 
 }
-void manualMode()
+void controllArm()
 {
   //Input use
   
-  if (x >= 0 && x < 480 ) 
+  if ( x < 400 ) 
+  {
     i=i-RES;
-  else if (x > 520 && x <= 1023 )
+    delay(IO_DELAY);
+  }
+  else if ( x > 600 )
+  {
     i=i+RES;
+    delay(IO_DELAY);
+  }
   
-  if (y >= 0 && y < 480 )
-    j=j-RES; 
-  else if (y > 520 && y <= 1023 )
-    j=j+RES;
+  if ( y < 400 )
+  {
+    k=k-RES; 
+    delay(IO_DELAY);
+  }
+  else if (y > 600)
+  {
+    k=k+RES;
+    delay(IO_DELAY);
+  }
   
   //Simple IK
   
@@ -158,9 +170,9 @@ void manualMode()
   
   //Smoothing anlges
   
-  smoothAngles0 = angles[0]*0.9 + smoothAngles0Prev *0.1;
-  smoothAngles1 = angles[1]*0.9 + smoothAngles1Prev *0.1;
-  smoothAngles2 = angles[2]*0.9 + smoothAngles2Prev *0.1;
+  smoothAngles0 = angles[0]*0.85 + smoothAngles0Prev *0.15;
+  smoothAngles1 = angles[1]*0.85 + smoothAngles1Prev *0.15;
+  smoothAngles2 = angles[2]*0.85 + smoothAngles2Prev *0.15;
   
   smoothAngles0Prev = smoothAngles0;
   smoothAngles1Prev = smoothAngles1;
@@ -171,7 +183,7 @@ void manualMode()
   sArm1.writeMicroseconds(smoothAngles0);
   sArm2.writeMicroseconds(smoothAngles1);
   sBase.writeMicroseconds(smoothAngles2);
-  /*
+  
   //Debug stuff
   Serial.print("punto ");
   Serial.print(i);
@@ -186,6 +198,47 @@ void manualMode()
   Serial.print(";");
   Serial.print(angles[2]);
   Serial.println(")");
-  */
+  
+  delay(100);
+}
+void controllJaw()
+{
+  sWrist.attach(SERVO4);
+  
+  if ( x < 400 ) 
+  {
+    jawAperture--;
+    delay(IO_DELAY);
+  }
+  else if ( x > 600 )
+  {
+    jawAperture++;
+    delay(IO_DELAY);
+  }
+  Serial.println(jawAperture);
+  sWrist.write(jawAperture);
+}
+void goTo(float x, float y, float z)//WIP
+{
+  //Simple IK
+  
+  inverseKinematics(x,y,z,angles);
+  
+  //Smoothing anlges
+  
+  smoothAngles0 = angles[0]*0.85 + smoothAngles0Prev *0.15;
+  smoothAngles1 = angles[1]*0.85 + smoothAngles1Prev *0.15;
+  smoothAngles2 = angles[2]*0.85 + smoothAngles2Prev *0.15;
+  
+  smoothAngles0Prev = smoothAngles0;
+  smoothAngles1Prev = smoothAngles1;
+  smoothAngles2Prev = smoothAngles2;
+
+  //Move the arm
+  
+  sArm1.writeMicroseconds(smoothAngles0);
+  sArm2.writeMicroseconds(smoothAngles1);
+  sBase.writeMicroseconds(smoothAngles2);
+  
   delay(100);
 }
