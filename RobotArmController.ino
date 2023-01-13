@@ -42,7 +42,7 @@ Servo sWrist;
 //All units are milimeters (mm)
 //Target point, initialized in a known postion
 
-float v_target[] = {1,1,1};
+float v_target[] = {0,2,0};
 
 //Lengths
 float length0 = 1;
@@ -118,7 +118,7 @@ void serialEvent()
     }
     else if(command[0] == c_sa1[0] && command[1] == c_sa1[1])
     {
-      writeEEprom(v_target[I],v_target[J],v_target[J]);
+      writeEEprom(v_target[I],v_target[J],v_target[K]);
     }
     else if(command[0] == c_go1[0] && command[1] == c_go1[1])
     {
