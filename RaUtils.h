@@ -1,5 +1,6 @@
 #include "Arduino.h"
 #include <Servo.h>
+#include <EEPROM.h>
 #define SERVO1 2 //Base, right 
 #define SERVO2 4 //Base, left
 #define SERVO3 5 //Arm, first
@@ -21,3 +22,7 @@ void controllArm(int xInput, int yInput, float v_target[], float length0,float l
 
 //Control of servo activated jaw
 int controllJaw(int xInput, Servo sJaw, int jawAperture);
+
+//EEpromHandle
+void readEEprom(float point[]);
+void writeEEprom(float v_targetI, float v_targetJ,float v_targetK);
